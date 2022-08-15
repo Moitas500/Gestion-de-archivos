@@ -10,18 +10,18 @@ public class FileSystem {
     Scanner sc = new Scanner(System.in);
 
     public static SuperBlock sb = null; // Registra la informacion total del disco virtual
-    public static ArrayList<User> users;
+    public static ArrayList<Users> users;
     public static ArrayList<INode> inodes = new ArrayList<INode>(100);
     public static ArrayList<Object> blocks = new ArrayList<>(100);
 
     public static String name = null;
     public static String password = null;
     public static int aux;
-    public static INode inode = null;
-    public static Object file = null;
+    public static INode now_inode = null;
+    public static Object now_file = null;
     private static FileSystem instance = new FileSystem();
 
-    public FileSystem() {
+    private FileSystem() {
     }
 
     // Singleton 
@@ -30,7 +30,7 @@ public class FileSystem {
     }
 
     public void init() {
-        System.out.println("              Sistema de archivos");
+        System.out.println("            Sistema de archivos ext2");
         System.out.println("_______________________________________________");
 
         if (!loadData()) {
@@ -47,61 +47,65 @@ public class FileSystem {
                 inodes.add(new INode());
             }
             for (int i = 0; i < 100; i++) {
-                sb.setInode_free(i);
+                sb.setInodeFree(i);
             }
-            FileOperations.write("superblock.dat", sb);
+            FileOperations.write("super.dat", sb);
 
-            users = new ArrayList<User>();
-            User user = new User("user", "123");
-            users.add(user);
-            register(user);
+            users = new ArrayList<Users>();
+            Users u = new Users("user", "123");
+            users.add(u);
+            register(u);
             FileOperations.write("users.dat", users);
         }
+
     }
 
     public void initFileExplorer() {
         init();
-        System.out.println("Inicio de sesión exitoso");
-        inode = getINode("user" + "/");
-        file = blocks.get(inode.getAddress());
+//        System.out.println("Inicio de sesión exitoso");
+        now_inode = getInode("user" + "/");
+        now_file = blocks.get(now_inode.getAddress());
     }
 
     public void login() {
         System.out.println("Bienvenido, ingrese su usuario y contraseña");
-        System.out.println("Nombre de usuario:");
+        System.out.print("Nombre de usuario:");
         name = sc.next();
-        System.out.println("Constraseña:");
+        System.out.print("Constraseña:");
         password = sc.next();
 
-        User user = isInNames(name);
+        Users user = isInNames(name);
         if (user == null) {
             System.out.println("El usuario \"" + name + "\" no existe ¿desea agregarlo? s/n");
             if ("s".equals(sc.next())) {
-                user = new User(name, password);
+                Users u = new Users(name, password);
 
-                if (register(user)) {
+                if (register(u)) {
                     System.out.println("Usuario registrado con éxito");
                     login();
                 } else {
                     System.out.println("El proceso de registro a fallado :C");
                     System.exit(0);
                 }
+
             } else {
                 login();
             }
+
         } else {
+
             if (name.equals(user.getName()) && password.equals(user.getPassword())) {
                 System.out.println("Inicio de sesión correcto");
-                inode = getINode(name + "/");
-                file = blocks.get(inode.getAddress());
-                
+                now_inode = getInode(name + "/");
+                now_file = blocks.get(now_inode.getAddress());
+
                 help();
                 execute();
-                 
             } else {
                 System.out.println("Inicio de sesión incorrecto");
                 login();
             }
+
         }
     }
 
@@ -110,8 +114,7 @@ public class FileSystem {
         String cmd[] = null;
 
         while (true) {
-            System.out.println(inode.getPath() + ">");
-
+            System.out.print(now_inode.getPath() + "> ");
             commond = sc.nextLine();
             if (commond.equals("")) {
                 commond = sc.nextLine();
@@ -121,12 +124,12 @@ public class FileSystem {
             // Listar
             if (cmd[0].trim().equals("ls")) {
                 listFiles();
+            } // crear archivo
+            else if (cmd[0].equals("cat")) {
+                createFile(cmd[1], true);
             } // Print working directory
             else if (cmd[0].trim().equals("pwd")) {
-                pwd();
-            } // Crear archivo
-            else if (cmd[0].trim().equals("cat")) {
-                createFile(cmd[1], true);
+                PWD();
             } // Crear carpeta
             else if (cmd[0].trim().equals("mkdir")) {
                 if (cmd.length == 1) {
@@ -160,13 +163,13 @@ public class FileSystem {
             } // Cambiar nombre
             else if (cmd[0].trim().equals("rename")) {
                 if (cmd.length < 3) {
-                    System.out.println("Entrada de comando incorrecta");
+                    System.out.println("entrada de comando incorrecta");
                 } else if (rename(cmd[1], cmd[2])) {
                     System.out.println("Cambio de nombre exitoso");
                 } else {
                     System.out.println("Cambio de nombre fallido");
                 }
-            } // Leer contenido del archivo
+            } // leer contenido de archivo
             else if (cmd[0].trim().equals("read")) {
                 readFile(cmd[1]);
             } // Editar archivo
@@ -177,19 +180,15 @@ public class FileSystem {
                 exit();
             } // Deslogearse
             else if (cmd[0].trim().equals("logout")) {
-                FileOperations.write("superblock.dat", sb);
+                FileOperations.write("super.dat", sb);
                 FileOperations.write("users.dat", users);
                 FileOperations.write("inodes.dat", inodes);
                 FileOperations.write("data.dat", blocks);
-                System.out.println("Sesión finalizada");
+                System.out.println("Saliendo!");
                 login();
             } // help
             else if (cmd[0].trim().equals("help")) {
                 help();
-            } // Formateo
-            else if (cmd[0].trim().equals("format")) {
-                format();
-                System.out.println("Formateado");
             } else {
                 System.out.println(commond);
                 System.out.println("Commando no encontrado");
@@ -198,72 +197,71 @@ public class FileSystem {
     }
 
     public boolean loadData() {
-        sb = (SuperBlock) FileOperations.read("superblock.dat");
+        sb = (SuperBlock) FileOperations.read("super.dat");
         if (sb != null) {
             inodes = (ArrayList<INode>) FileOperations.read("inodes.dat");
         }
         blocks = (ArrayList<Object>) FileOperations.read("data.dat");
-        users = (ArrayList<User>) FileOperations.read("users.dat");
+        users = (ArrayList<Users>) FileOperations.read("users.dat");
         return !(sb == null || inodes == null || blocks == null || users == null);
     }
 
     public void listFiles() {
         int m = 0;
-        if (file instanceof Directory) {
-            Directory nowRealFile = (Directory) file;
+        if (now_file instanceof Directory) {
+            Directory nowRealFile = (Directory) now_file;
             m = nowRealFile.getTree().size();
             if (m == 0) {
                 System.out.println("Ninguna entrada de directorio");
             } else {
-                System.out.println("Nombre del archivo\tdirección\tSL 0/SE 1\tLongitud de archivo\t");
+                System.out.println("Nombre del archivo\tDirección\tSL 0/SE 1\tLongitud de archivo\t");
                 Set<Integer> dirInodes = nowRealFile.getTree().keySet();
                 Iterator<Integer> iteratore = dirInodes.iterator();
 
                 while (iteratore.hasNext()) {
-                    Object fileObj = blocks.get(nowRealFile.getTree().get(iteratore.next()));
+                    Object file = blocks.get(nowRealFile.getTree().get(iteratore.next()));
 
-                    if (fileObj instanceof Directory) {
-                        Directory realFile = (Directory) fileObj;
-                        INode realINode = inodes.get(realFile.getInode_address());
+                    if (file instanceof Directory) {
+                        Directory realFile = (Directory) file;
+                        INode realInode = inodes.get(realFile.getInodeAddress());
 
                         System.out.println(String.format("%-15s", realFile.getName()) + "\t\t" + "inode "
-                                + realINode.getAddress() + "\t\t" + String.format("%5s", realINode.getRight())
-                                + "\t\t" + String.format("%10s", realINode.getLength() + "B\t"));
+                                + realInode.getAddress() + "\t\t" + String.format("%5s", realInode.getRight())
+                                + "\t\t" + String.format("%10s", realInode.getLength()) + "B\t");
+
                     } else {
-                        File realFile = (File) fileObj;
-                        INode realINode = inodes.get(realFile.getInode_add());
+                        File realFile = (File) file;
+                        INode realInode = inodes.get(realFile.getInodeAddress());
                         System.out.println(String.format("%-15s", realFile.getName()) + "\t\t" + "inode "
-                                + realINode.getAddress() + "\t\t" + String.format("%5s", realINode.getRight())
-                                + "\t\t" + String.format("%10s", realINode.getLength() + "B\t"));
-
+                                + realInode.getAddress() + "\t\t" + String.format("%5s", realInode.getRight())
+                                + "\t\t" + String.format("%10s", realInode.getLength()) + "B\t");
                     }
-
                 }
                 System.out.println("Número de archivos: " + m);
             }
         } else {
-            File nowRealFile = (File) file;
+            File nowRealFile = (File) now_file;
         }
     }
 
-    public boolean register(User user) {
-        int inodeIndex = 0;
-        inodeIndex = sb.getInode_free();
-        if (inodeIndex > -1) {
-            inode = inodes.get(inodeIndex);
-            inode.setAddress(inodeIndex);
-            inode.setModifytime();
-            inode.setRight(1);
-            inode.setState("close");
-            inode.setType(0);
-            inode.setUser(user.getName());
-            inode.setPath(user.getName() + "/");
-            inode.setMe(inodeIndex);
+    public boolean register(Users user) {
+        int inodeFreeIndex = 0;
+        inodeFreeIndex = this.getFreeInode();
+        if (inodeFreeIndex > -1) {
+            now_inode = inodes.get(inodeFreeIndex);
+            now_inode.setAddress(inodeFreeIndex);
+            now_inode.setModifytime();
+            now_inode.setRight(1);
+            now_inode.setState("close");
+            now_inode.setType(0);
+            now_inode.setUsers(user.getName());
+            now_inode.setPath(user.getName() + "/");
+            now_inode.setMe(inodeFreeIndex);
 
-            inodes.set(inodeIndex, inode);
+            inodes.set(inodeFreeIndex, now_inode);
             Directory block = new Directory();
             block.setName(user.getName());
-            blocks.set(inodeIndex, block);
+            blocks.set(inodeFreeIndex, block);
             users.add(user);
             FileOperations.write("users.dat", users);
             FileOperations.write("inodes.dat", inodes);
@@ -291,41 +289,40 @@ public class FileSystem {
         System.out.println("\tstat [archivo]\tMostrar propiedades de archivo");
         System.out.println("\texit\t\t\t\tSalir");
         System.out.println("\tlogout\t\t\t\tCerrar sesión");
-        System.out.println("\tformat\t\t\t\tEliminar contenido de disco");
     }
 
     public void saveData() {
-        FileOperations.write("superblock.dat", sb);
+        FileOperations.write("super.dat", sb);
         FileOperations.write("users.dat", users);
-        FileOperations.write("iondes.dat", inodes);
+        FileOperations.write("inodes.dat", inodes);
         FileOperations.write("data.dat", blocks);
     }
 
     public void createFile(String fileName, boolean writeable) {
-        int index = sb.getInode_free();
+        int index = getFreeInode();
         if (index != -1) {
-            File file = new File();
-            file.setName(fileName);
+            File myFile = new File();
+            myFile.setName(fileName);
             INode inode = new INode();
-            inode.setFather(this.inode.getMe());
-            inode.setUser(name);
+            inode.setFather(now_inode.getMe());
+            inode.setUsers(name);
             inode.setMe(index);
             inode.setModifytime();
-
+            
             if (inode.getFather() == -1) {
                 inode.setPath(name + "/");
             } else {
                 inode.setPath(inodes.get(inode.getFather()).getPath() + fileName + "/");
             }
-
+            
             inode.setRight(1); // Escritura
             inode.setState("open");
             inode.setType(1); // Documento
             inode.setAddress(index);
             inodes.set(index, inode);
-            file.setInode_add(index);
-            Directory realFile = (Directory) this.file;
-            blocks.set(index, file);
+            myFile.setInodeAddress(index);
+            Directory realFile = (Directory) now_file;
+            blocks.set(index, myFile);
             realFile.getTree().put(index, index);
             if (writeable) {
                 System.out.println(fileName + " El archivo esta abierto, ingrese el conteniod, terminado con **");
@@ -333,51 +330,53 @@ public class FileSystem {
                 while (true) {
                     String tem = sc.nextLine();
                     if (tem.equals("**")) {
-                        System.out.println("Entrda de fin de archivo");
+                        System.out.println("entrada de fin de archivo");
                         break;
                     } else {
                         content.append(tem + "\r\n");
                     }
-                }
 
-                file.setContent(content.toString());
+                }
+                
+                myFile.setContent(content.toString());
                 inodes.get(index).setLength(content.length());
                 inodes.get(index).setState("close");
                 System.out.println(fileName + " el archivo esta cerrado");
                 sb.setAlreadyUse(content.length());
             }
-            sb.setInode_busy(index);
+            sb.setInodeBusy(index);
         } else {
             System.out.println("Inode de la aplicación fallá");
         }
     }
 
     public void createDirectory(String directoryName) {
-        int index = sb.getInode_free();
+        int index = getFreeInode();
         if (index != -1) {
-            Directory file = new Directory();
-            file.setName(directoryName);
+            Directory my_file = new Directory();
+            my_file.setName(directoryName);
             INode inode = new INode();
-            inode.setFather(this.inode.getMe());
-            inode.setUser(name);
+            inode.setFather(now_inode.getMe());
+            inode.setUsers(name);
             inode.setMe(index);
             inode.setModifytime();
-            inode.setPath(this.inode.getPath() + directoryName + "/");
+            inode.setPath(now_inode.getPath() + directoryName + "/");
 
-            System.out.println("Nueva dirección: " + this.inode.getPath() + directoryName + "/");
+            System.out.println("Nueva dirección: " + now_inode.getPath() + directoryName + "/");
             inode.setRight(1); // Escritura
             inode.setType(0); // Carpeta
             inode.setAddress(index);
             inodes.set(index, inode);
-            file.setInode_add(index);
-            Directory realFile = (Directory) this.file;
-            blocks.set(index, file);
-            realFile.getTree().put(index, index);
+            my_file.setInodeAddress(index);
+            Directory real_file = (Directory) now_file;
+            blocks.set(index, my_file);
+            real_file.getTree().put(index, index);
             inodes.get(index).setLength(0);
-            sb.setInode_busy(index);
+            sb.setInodeBusy(index);
         } else {
-            System.out.println("inode la aplicación dallá");
+            System.out.println("inode la aplicación fallá");
         }
+
     }
 
     public void remove(String fileName) {
@@ -388,14 +387,14 @@ public class FileSystem {
                 Directory o1 = (Directory) o;
 
                 if (o1.getTree().size() == 0) {
-                    int index = o1.getInode_address();
-                    sb.setInode_free(index);
+                    int index = o1.getInodeAddress();
+                    sb.setInodeFree(index);
                     // restablecer nodo
                     inodes.set(index, new INode());
                     // restablecer bloque
-                    blocks.set(o1.getInode_address(), new File());
+                    blocks.set(o1.getInodeAddress(), new File());
                     // Eliminar datos en el Arbol del directorio
-                    Directory file = (Directory) this.file;
+                    Directory file = (Directory) now_file;
                     file.getTree().remove(index);
 
                     System.out.println(o1.getName() + "; El directorio fue eliminado");
@@ -405,15 +404,15 @@ public class FileSystem {
             } else if (o instanceof File) {
                 File o1 = (File) o;
 
-                int index = o1.getInode_add();
-                sb.setInode_free(index);
+                int index = o1.getInodeAddress();
+                sb.setInodeFree(index);
                 sb.setFreeuse(inodes.get(index).getLength());
                 // restablecer nodo
                 inodes.set(index, new INode());
                 // restablecer bloque
-                blocks.set(o1.getInode_add(), new File());
+                blocks.set(o1.getInodeAddress(), new File());
                 // Eliminar datos en el Arbol del directorio
-                Directory file = (Directory) this.file;
+                Directory file = (Directory) now_file;
                 file.getTree().remove(index);
 
                 System.out.println(o1.getName() + "; El archivo fue eliminado");
@@ -426,65 +425,64 @@ public class FileSystem {
 
     public String printFileStats(String fileName) {
         int bandera = 0;
-        String status = "";
-        Directory realFile = (Directory) file;
-        Set<Integer> dir_inodes = realFile.getTree().keySet();
+        String stats = "";
+        Directory nowRealFile = (Directory) now_file;
+        Set<Integer> dir_inodes = nowRealFile.getTree().keySet();
         Iterator<Integer> iteratore = dir_inodes.iterator();
 
         while (iteratore.hasNext()) {
-            Object file = blocks.get(realFile.getTree().get(iteratore.next()));
+            Object file = blocks.get(nowRealFile.getTree().get(iteratore.next()));
 
             if (file instanceof Directory) {
                 if (((Directory) file).getName().equals(fileName)) {
-                    INode searchINode = inodes.get(((Directory) file).getInode_address());
+                    INode search_inode = inodes.get(((Directory) file).getInodeAddress());
                     if (bandera == 0) {
                         System.out.println(String.format("%-20s", "Nombre archivo")
                                 + "\tUsuario\t\tDirección\tLongitud de archivo\t   SL 0/SE 1\tEstado\tFecha de creación");
                         bandera = 1;
                     }
-
                     // revisar
-                    status += "Nombre archivo: " + ((Directory) file).getName() + "\n" + "Usuario: "
-                            + searchINode.getUser() + "\n" + "Dirección: " + "inode " + searchINode.getAddress()
-                            + "\n" + "Longitud de archivo: " + searchINode.getLength() + "B" + "\n" + "Permisos: "
-                            + searchINode.getRight() + "\n" + "Estado: " + searchINode.getState() + "\n"
-                            + "Fecha de creación: " + searchINode.getModifytime();
+                    stats += "Nombre archivo: " + ((Directory) file).getName() + "\n" + "Usuario: "
+                            + search_inode.getUsers() + "\n" + "Dirección: " + "inode " + search_inode.getAddress()
+                            + "\n" + "Longitud de archivo: " + search_inode.getLength() + "B" + "\n" + "Permisos: "
+                            + search_inode.getRight() + "\n" + "Estado: " + search_inode.getState() + "\n"
+                            + "Fecha de creación: " + search_inode.getModifytime();
 
                     System.out.println(String.format("%-20s", ((Directory) file).getName()) + "\t"
-                            + searchINode.getUser() + "\t\t" + "inode " + searchINode.getAddress() + "\t\t"
-                            + String.format("%10s", searchINode.getLength() + "B") + "\t\t\t"
-                            + String.format("%5s", searchINode.getRight()) + "\t" + searchINode.getState() + "\t"
-                            + searchINode.getModifytime());
+                            + search_inode.getUsers() + "\t\t" + "inode " + search_inode.getAddress() + "\t\t"
+                            + String.format("%10s", search_inode.getLength() + "B") + "\t\t\t"
+                            + String.format("%5s", search_inode.getRight()) + "\t" + search_inode.getState() + "\t"
+                            + search_inode.getModifytime());
+
                 }
             } else if (file instanceof File) {
                 if (((File) file).getName().equals(fileName)) {
-                    INode searchINode = inodes.get(((File) file).getInode_add());
+                    INode searchInode = inodes.get(((File) file).getInodeAddress());
                     if (bandera == 0) {
                         System.out.println(String.format("%-20s", "Nombre archivo")
                                 + "\tUsuario\t\tDirección\tLongitud de archivo\t   SL 0/SE 1\tEstado\tFecha de creación");
                         bandera = 1;
                     }
 
-                    status += "Nombre archivo: " + ((File) file).getName() + "\n" + "Usuario: "
-                            + searchINode.getUser() + "\n" + "Dirección: " + "inode " + searchINode.getAddress()
-                            + "\n" + "Longitud de archivo: " + searchINode.getLength() + "B" + "\n" + "Permisos: "
-                            + searchINode.getRight() + "\n" + "Estado: " + searchINode.getState() + "\n"
-                            + "Fecha de creación: " + searchINode.getModifytime();
+                    stats += "Nombre archivo: " + ((File) file).getName() + "\n" + "Usuario: "
+                            + searchInode.getUsers() + "\n" + "Dirección: " + "inode " + searchInode.getAddress()
+                            + "\n" + "Longitud de archivo: " + searchInode.getLength() + "B" + "\n" + "Permisos: "
+                            + searchInode.getRight() + "\n" + "Estado: " + searchInode.getState() + "\n"
+                            + "Fecha de creación: " + searchInode.getModifytime();
 
                     System.out.println(String.format("%-20s", ((File) file).getName()) + "\t"
-                            + searchINode.getUser() + "\t\t" + "inode " + searchINode.getAddress() + "\t\t"
-                            + String.format("%10s", searchINode.getLength() + "B") + "\t\t\t"
-                            + String.format("%5s", searchINode.getRight()) + "\t" + searchINode.getState() + "\t"
-                            + searchINode.getModifytime());
+                            + searchInode.getUsers() + "\t\t" + "inode " + searchInode.getAddress() + "\t\t"
+                            + String.format("%10s", searchInode.getLength() + "B") + "\t\t\t"
+                            + String.format("%5s", searchInode.getRight()) + "\t" + searchInode.getState() + "\t"
+                            + searchInode.getModifytime());
                 }
             }
-
         }
 
         if (bandera == 0) {
             System.out.println("El archivo o directorio no existe");
         }
-        return status;
+        return stats;
     }
 
     public boolean changeDirectory(String directory) {
@@ -492,23 +490,23 @@ public class FileSystem {
         if (".".equals(directory)) {
             System.out.println("Use .. para ir al directorio anterior");
         } else if ("..".equals(directory)) {
-            if (this.inode.getFather() == -1) {
+            if (now_inode.getFather() == -1) {
                 System.out.println("El directorio actual es el directorio raiz");
             } else {
-                Directory nowDirectory = (Directory) this.file;
-                this.inode = inodes.get(this.inode.getFather());
-                this.file = blocks.get(this.inode.getAddress());
+                Directory nowDirectory = (Directory) now_file;
+                now_inode = inodes.get(now_inode.getFather());
+                now_file = blocks.get(now_inode.getAddress());
             }
         } else {
-            Directory realFile = (Directory) this.file;
-            Set<Integer> dirINodes = realFile.getTree().keySet();
-            Iterator<Integer> iteratore = dirINodes.iterator();
+            Directory realFile = (Directory) now_file;
+            Set<Integer> dirInodes = realFile.getTree().keySet();
+            Iterator<Integer> iteratore = dirInodes.iterator();
             while (iteratore.hasNext()) {
                 Object file = blocks.get(realFile.getTree().get(iteratore.next()));
-                if (file instanceof Directory realDirectory) {
-                    if (realDirectory.getName().equals(directory)) {
-                        this.file = realDirectory;
-                        this.inode = inodes.get(realDirectory.getInode_address());
+                if (file instanceof Directory myDirectory) {
+                    if (myDirectory.getName().equals(directory)) {
+                        now_file = myDirectory;
+                        now_inode = inodes.get(myDirectory.getInodeAddress());
                         bandera = true;
                     }
                 }
@@ -526,26 +524,26 @@ public class FileSystem {
 
         for (int i = 0; i < blocks.size(); i++) {
             Object o = blocks.get(i);
-            if (o instanceof File file) {
-                if (file.getName().equals(fileName)) {
-                    INode inode = inodes.get(file.getInode_add());
+            if (o instanceof File myFile) {
+                if (myFile.getName().equals(fileName)) {
+                    INode inode = inodes.get(myFile.getInodeAddress());
                     if (inode.getState().equals("open")) {
                         System.out.println("El archivo ha sido abierto");
                         bandera = true;
                     } else {
-                        this.inode.setState("open");
+
+                        inode.setState("open");
                         System.out.println("Archivo abierto con éxito");
                         aux++;
                         bandera = true;
                     }
                 }
-
             }
         }
-
         if (!bandera) {
             System.out.println("El archivo no existe");
         }
+
     }
 
     public void closeFile(String fileName) {
@@ -553,21 +551,21 @@ public class FileSystem {
 
         for (int i = 0; i < blocks.size(); i++) {
             Object o = blocks.get(i);
-            if (o instanceof File file) {
-                if (file.getName().equals(fileName)) {
-                    INode inode = inodes.get(file.getInode_add());
+            if (o instanceof File myFile) {
+                if (myFile.getName().equals(fileName)) {
+                    INode inode = inodes.get(myFile.getInodeAddress());
                     if (inode.getState().equals("close")) {
-                        System.out.println("El archivo ha sido cerrado");
+                        System.out.println("El archivo ha sido cerrado!");
                         bandera = true;
                     } else {
                         inode.setState("close");
-                        System.out.println("Archivo cerra con éxito");
+                        System.out.println("Archivo cerrado con éxito");
                         aux--;
                         bandera = true;
                     }
                 }
-
             }
+
         }
 
         if (!bandera) {
@@ -581,7 +579,7 @@ public class FileSystem {
             if (o instanceof Directory o1) {
                 System.out.println(o1.getName() + " El directorio no puede ejecutar este comando");
             } else if (o instanceof File o1) {
-                System.out.println(o1.getName() + "El contenido del archivo es el siguiente: ");
+                System.out.println(o1.getName() + " El contenido del archivo es el siguiente: ");
                 System.out.println(o1.getContent().substring(0, o1.getContent().lastIndexOf("\r\n")));
             }
         }
@@ -591,8 +589,9 @@ public class FileSystem {
         Object o = this.getFileByName(fileName);
         if (null != o) {
             if (o instanceof Directory o1) {
-                System.out.println(o1.getName() + " El directorio no puede ejecutar este comandp");
+                System.out.println(o1.getName() + " El directorio no puede ejecutar este comando");
             } else if (o instanceof File o1) {
+                // System.out.println(o1.getName());
                 System.out.println("Seleccione: \n1.Continuar\n2.Reescribir");
                 String select = sc.next();
 
@@ -620,8 +619,8 @@ public class FileSystem {
                         while (true) {
                             String tem = sc.next();
                             if (tem.equals("**")) {
-                                System.out.println("entrada de fin de archivo");
-                                break;
+                                System.out.println("Archivo modificado");
+                                break;// entrada de fin de archivo
                             } else {
                                 content.append(tem + "\r\n");
                             }
@@ -639,7 +638,52 @@ public class FileSystem {
             }
         } else {
             System.out.println("Errores de entrada, vuelva a ingresar 1 o 2");
+
         }
+    }
+
+    public String PWD() {
+        String path = now_inode.getPath();
+        System.out.println(path);
+        return path;
+    }
+
+    Object getFileByName(String name) {
+        for (Object o : blocks) {
+            if (o instanceof Directory o1) {
+                if (o1.getName().equals(name)) {
+                    return o1;
+                }
+            } else if (o instanceof File o1) {
+                if (o1.getName().equals(name)) {
+                    return o1;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Users isInNames(String name) {
+        for (Users u : users) {
+            if (u.getName().equals(name)) {
+                return u;
+            }
+        }
+        return null;
+    }
+
+    private int getFreeInode() {
+        return sb.getInodeFree();
+    }
+
+
+    private INode getInode(String path) {
+        for (int i = 0; i < 100; i++) {
+            if (path.equals(inodes.get(i).getPath())) {
+                return inodes.get(i);
+            }
+        }
+        return null;
     }
 
     boolean rename(String fileName, String newFileName) {
@@ -650,7 +694,7 @@ public class FileSystem {
             if (o instanceof Directory) {
                 Directory oo = (Directory) o;
                 oo.setName(newFileName);
-                inodes.get(oo.getInode_address()).setPath(this.inode.getPath() + newFileName + "/");
+                inodes.get(oo.getInodeAddress()).setPath(now_inode.getPath() + newFileName + "/");
                 return true;
             } else {
                 File oo = (File) o;
@@ -660,75 +704,14 @@ public class FileSystem {
         }
     }
 
-    public void format() {
-        blocks = new ArrayList<Object>(100);
-        for (int i = 0; i < 100; i++) {
-            blocks.add(new File());
-        }
-        FileOperations.write("data.dat", blocks);
-        sb = new SuperBlock();
-        for (int i = 0; i < 100; i++) {
-            inodes.add(new INode());
-        }
-        for (int i = 0; i < 100; i++) {
-            sb.setInode_free(i);
-        }
-        FileOperations.write("superblock.dat", sb);
-
-        users = new ArrayList<User>();
-        User u = new User("admin", "admin");
-        users.add(u);
-        register(u);
-        FileOperations.write("users.dat", users);
-    }
-
-    private INode getINode(String path) {
-        for (int i = 0; i < 100; i++) {
-            if (path.equals(inodes.get(i).getPath())) {
-                return inodes.get(i);
-            }
-        }
-        return null;
-    }
-
-    private User isInNames(String name) {
-        for (User user : users) {
-            if (user.getName().equals(name)) {
-                return user;
-            }
-        }
-        return null;
-    }
-
-    public String pwd() {
-        String path = inode.getPath();
-        System.out.println(path);
-        return path;
-    }
-
-    Object getFileByName(String name) {
-        for (Object o : blocks) {
-            if (o instanceof Directory ol) {
-                if (ol.getName().equals(name)) {
-                    return ol;
-                }
-            } else if (o instanceof File ol) {
-                if (ol.getName().equals(name)) {
-                    return ol;
-                }
-            }
-        }
-        return null;
-    }
-
     public static ArrayList<File> listFilesByDirectory(Directory directory) {
         ArrayList<File> fileList = new ArrayList<>();
         Set<Integer> dirInodes = directory.getTree().keySet();
         Iterator<Integer> iteratore = dirInodes.iterator();
         while (iteratore.hasNext()) {
             Object file = blocks.get(directory.getTree().get(iteratore.next()));
-            if (file instanceof Directory realFile) {
-                fileList.add(realFile);
+            if (file instanceof Directory real_file) {
+                fileList.add(real_file);
             } else {
                 File realFile = (File) file;
                 fileList.add(realFile);
@@ -739,10 +722,10 @@ public class FileSystem {
 
     public static String getFilePath(File file) {
         if (file instanceof Directory realFile) {
-            return inodes.get(realFile.getInode_address()).getPath();
+            return inodes.get(realFile.getInodeAddress()).getPath();
         } else {
             File realFile = (File) file;
-            return inodes.get(realFile.getInode_add()).getPath();
+            return inodes.get(realFile.getInodeAddress()).getPath();
         }
     }
 
@@ -754,7 +737,7 @@ public class FileSystem {
         return sb;
     }
 
-    public static ArrayList<User> getUsers() {
+    public static ArrayList<Users> getUsers() {
         return users;
     }
 
@@ -774,11 +757,11 @@ public class FileSystem {
         return password;
     }
 
-    public static INode getInode() {
-        return inode;
+    public static INode getNow_inode() {
+        return now_inode;
     }
 
-    public static Object getFile() {
-        return file;
+    public static Object getNow_file() {
+        return now_file;
     }
 }

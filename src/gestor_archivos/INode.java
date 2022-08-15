@@ -12,7 +12,7 @@ public class INode implements Serializable, Comparable<INode> {
     private int length = 0; // longitud de archivo
     private String modifytime; // Momento de modificación
 
-    private String user = ""; // Nombre del usuario
+    private String users = ""; // Nombre del usuario
     private int right = 1; // 0-lectura, 1-lectura y escritura
     
     private String state = "close"; // Estado
@@ -49,16 +49,16 @@ public class INode implements Serializable, Comparable<INode> {
 
     public void setModifytime() {
         Date date = new Date();
-        SimpleDateFormat adf = new SimpleDateFormat("dd/MM/yyyy HH:MM");
+        SimpleDateFormat adf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
         this.modifytime = adf.format(date);
     }
 
-    public String getUser() {
-        return user;
+    public String getUsers() {
+        return users;
     }
 
-    public void setUser(String user) {
-        this.user = user;
+    public void setUsers(String users) {
+        this.users = users;
     }
 
     public String getRight() {
@@ -106,7 +106,7 @@ public class INode implements Serializable, Comparable<INode> {
     }
         
     public String toString() {
-        return this.getUser() + "\t" + this.getLength() + "b\t"
+        return this.getUsers() + "\t" + this.getLength() + "b\t"
                 + this.getRight() + "\t" + this.getModifytime();
     }
 

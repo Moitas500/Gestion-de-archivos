@@ -33,7 +33,7 @@ public class SuperBlock implements Serializable {
         this.alreadyUse = this.getTotalContent() - this.getFreeuse();
     }
 
-    public int getInode_free() {
+    public int getInodeFree() {
         if (null != this.inode_free && this.inode_free.size() > 0) {
             int tem = this.inode_free.get(0);
             if (tem > -1 && tem < 100) {
@@ -45,7 +45,7 @@ public class SuperBlock implements Serializable {
         return -1;
     }
 
-    public void setInode_free(int inode_free) {
+    public void setInodeFree(int inode_free) {
         if (inode_free > -1 && inode_free < 100) {
             if (this.inode_busy.contains(inode_free)) {
                 this.inode_busy.remove(inode_free);
@@ -56,7 +56,7 @@ public class SuperBlock implements Serializable {
         }
     }
 
-    public int getInode_busy() {
+    public int getInodeBusy() {
         if (null != this.inode_busy && this.inode_busy.size() > 0) {
             int tem = this.inode_busy.get(0);
             if (tem > -1 && tem < 100) {
@@ -68,7 +68,7 @@ public class SuperBlock implements Serializable {
         return -1;
     }
 
-    public void setInode_busy(int inode_busy) {
+    public void setInodeBusy(int inode_busy) {
         if (inode_busy > -1 && inode_busy < 100) {
             if (this.inode_free.contains(inode_busy)) {
                 this.inode_free.remove(inode_busy);

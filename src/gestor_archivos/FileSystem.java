@@ -94,12 +94,10 @@ public class FileSystem {
                 System.out.println("Inicio de sesión correcto");
                 inode = getINode(name + "/");
                 file = blocks.get(inode.getAddress());
-                ///////////////////
-                /*
+                
                 help();
                 execute();
-                 */
-                ///////////////////                
+                 
             } else {
                 System.out.println("Inicio de sesión incorrecto");
                 login();
@@ -145,11 +143,7 @@ public class FileSystem {
             } // Seleccionar directorio
             else if (cmd[0].trim().equals("cd")) {
                 if (cmd.length == 1) {
-                    System.out.println("");
-                    /////////////////////////////////////
-                    /////////////////////////////////////
-                    /////////////////////////////////////
-                    /////////////////////////////////////
+                    System.out.println("cd Agregue .. o el nombre del subdirectorio después");
                     continue;
                 }
                 changeDirectory(cmd[1]);
@@ -162,7 +156,7 @@ public class FileSystem {
                 openFile(cmd[1]);
             } // Cerrar un archivo
             else if (cmd[0].trim().equals("close")) {
-                closeFiel(cmd[1]);
+                closeFile(cmd[1]);
             } // Cambiar nombre
             else if (cmd[0].trim().equals("rename")) {
                 if (cmd.length < 3) {
@@ -527,9 +521,9 @@ public class FileSystem {
         return bandera;
     }
 
-    public void openFile(String fileName){
+    public void openFile(String fileName) {
         boolean bandera = false;
-        
+
         for (int i = 0; i < blocks.size(); i++) {
             Object o = blocks.get(i);
             if (o instanceof File file) {
@@ -545,18 +539,18 @@ public class FileSystem {
                         bandera = true;
                     }
                 }
-                
+
             }
         }
-        
+
         if (!bandera) {
             System.out.println("El archivo no existe");
         }
     }
-    
+
     public void closeFile(String fileName) {
         boolean bandera = false;
-        
+
         for (int i = 0; i < blocks.size(); i++) {
             Object o = blocks.get(i);
             if (o instanceof File file) {
@@ -572,19 +566,120 @@ public class FileSystem {
                         bandera = true;
                     }
                 }
-                
+
             }
         }
-        
+
         if (!bandera) {
             System.out.println("El archivo no existe");
         }
     }
-    
-    
-    
-    private int getFreeInode() {
-        return sb.getInode_free();
+
+    public void readFile(String fileName) {
+        Object o = this.getFileByName(fileName);
+        if (null != o) {
+            if (o instanceof Directory o1) {
+                System.out.println(o1.getName() + " El directorio no puede ejecutar este comando");
+            } else if (o instanceof File o1) {
+                System.out.println(o1.getName() + "El contenido del archivo es el siguiente: ");
+                System.out.println(o1.getContent().substring(0, o1.getContent().lastIndexOf("\r\n")));
+            }
+        }
+    }
+
+    public void editFile(String fileName) {
+        Object o = this.getFileByName(fileName);
+        if (null != o) {
+            if (o instanceof Directory o1) {
+                System.out.println(o1.getName() + " El directorio no puede ejecutar este comandp");
+            } else if (o instanceof File o1) {
+                System.out.println("Seleccione: \n1.Continuar\n2.Reescribir");
+                String select = sc.next();
+
+                while (true) {
+                    if ("1".equals(select)) {
+                        System.out.println("Ingrese los datos para continuar, terminando con **");
+                        StringBuffer content = new StringBuffer(
+                                o1.getContent().substring(0, o1.getContent().lastIndexOf("\r\n")));
+                        while (true) {
+                            String tem = sc.next();
+                            if (tem.equals("**")) {
+                                System.out.println("entrada de fin de archivo");
+                                break;
+                            } else {
+                                content.append(tem + "\r\n");
+                            }
+
+                        }
+                        o1.setContent(content.toString());
+                        System.out.println("Continuar operación de escritura exitosa");
+                        break;
+                    } else if ("2".equals(select)) {
+                        System.out.println("Por favor reescriba el archivo, terminando con **");
+                        StringBuffer content = new StringBuffer();
+                        while (true) {
+                            String tem = sc.next();
+                            if (tem.equals("**")) {
+                                System.out.println("entrada de fin de archivo");
+                                break;
+                            } else {
+                                content.append(tem + "\r\n");
+                            }
+
+                        }
+                        o1.setContent(content.toString());
+                        System.out.println("Operación de reescritura exitosa");
+                        break;
+
+                    } else {
+                        System.out.println("Errores de entrada, vuelva a ingresar");
+                        select = sc.next();
+                    }
+                }
+            }
+        } else {
+            System.out.println("Errores de entrada, vuelva a ingresar 1 o 2");
+        }
+    }
+
+    boolean rename(String fileName, String newFileName) {
+        Object o = getFileByName(fileName);
+        if (null == o) {
+            return false;
+        } else {
+            if (o instanceof Directory) {
+                Directory oo = (Directory) o;
+                oo.setName(newFileName);
+                inodes.get(oo.getInode_address()).setPath(this.inode.getPath() + newFileName + "/");
+                return true;
+            } else {
+                File oo = (File) o;
+                oo.setName(newFileName);
+                return true;
+            }
+        }
+    }
+
+    public void format() {
+        blocks = new ArrayList<Object>(100);
+        for (int i = 0; i < 100; i++) {
+            blocks.add(new File());
+        }
+        FileOperations.write("data.dat", blocks);
+        sb = new SuperBlock();
+        for (int i = 0; i < 100; i++) {
+            inodes.add(new INode());
+        }
+        for (int i = 0; i < 100; i++) {
+            sb.setInode_free(i);
+        }
+        FileOperations.write("superblock.dat", sb);
+
+        users = new ArrayList<User>();
+        User u = new User("admin", "admin");
+        users.add(u);
+        register(u);
+        FileOperations.write("users.dat", users);
     }
 
     private INode getINode(String path) {
@@ -601,9 +696,14 @@ public class FileSystem {
             if (user.getName().equals(name)) {
                 return user;
             }
-
         }
         return null;
+    }
+
+    public String pwd() {
+        String path = inode.getPath();
+        System.out.println(path);
+        return path;
     }
 
     Object getFileByName(String name) {
@@ -619,5 +719,66 @@ public class FileSystem {
             }
         }
         return null;
+    }
+
+    public static ArrayList<File> listFilesByDirectory(Directory directory) {
+        ArrayList<File> fileList = new ArrayList<>();
+        Set<Integer> dirInodes = directory.getTree().keySet();
+        Iterator<Integer> iteratore = dirInodes.iterator();
+        while (iteratore.hasNext()) {
+            Object file = blocks.get(directory.getTree().get(iteratore.next()));
+            if (file instanceof Directory realFile) {
+                fileList.add(realFile);
+            } else {
+                File realFile = (File) file;
+                fileList.add(realFile);
+            }
+        }
+        return fileList;
+    }
+
+    public static String getFilePath(File file) {
+        if (file instanceof Directory realFile) {
+            return inodes.get(realFile.getInode_address()).getPath();
+        } else {
+            File realFile = (File) file;
+            return inodes.get(realFile.getInode_add()).getPath();
+        }
+    }
+
+    public Scanner getSc() {
+        return sc;
+    }
+
+    public static SuperBlock getSb() {
+        return sb;
+    }
+
+    public static ArrayList<User> getUsers() {
+        return users;
+    }
+
+    public static ArrayList<INode> getInodes() {
+        return inodes;
+    }
+
+    public static ArrayList<Object> getBlocks() {
+        return blocks;
+    }
+
+    public static String getName() {
+        return name;
+    }
+
+    public static String getPassword() {
+        return password;
+    }
+
+    public static INode getInode() {
+        return inode;
+    }
+
+    public static Object getFile() {
+        return file;
     }
 }
